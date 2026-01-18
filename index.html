@@ -2,84 +2,110 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>UA Dev Hub | Cloud Messenger</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UA Dev Hub | Cloud Terminal</title>
     <style>
-        :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; }
-        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; }
-        #sidebar { width: 70px; background: var(--panel); border-right: 1px solid #3b4261; display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px; }
-        #chat-area { flex: 1; display: flex; flex-direction: column; }
-        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .bubble { max-width: 70%; padding: 12px; border-radius: 15px; font-size: 14px; background: #24283b; align-self: flex-start; }
-        .mine { align-self: flex-end; background: #3d59a1; }
-        .user-name { font-size: 10px; color: #bb9af7; font-weight: bold; margin-bottom: 4px; display: block; }
-        #input-zone { background: var(--panel); padding: 15px; display: flex; gap: 10px; border-top: 1px solid #3b4261; }
-        input { flex: 1; background: #24283b; border: none; color: white; padding: 12px; border-radius: 20px; outline: none; }
-        button { background: var(--accent); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; }
+        :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; --bubble-me: #3d59a1; --bubble-them: #24283b; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 70px; background: var(--panel); border-right: 1px solid #3b4261; display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 25px; }
+        #chat-main { flex: 1; display: flex; flex-direction: column; background: #1a1b26; }
+        #header { padding: 15px 25px; background: var(--panel); border-bottom: 1px solid #3b4261; display: flex; justify-content: space-between; align-items: center; }
+        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
+        .bubble { max-width: 75%; padding: 12px 16px; border-radius: 18px; font-size: 14px; line-height: 1.5; position: relative; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .mine { align-self: flex-end; background: var(--bubble-me); border-bottom-right-radius: 4px; color: white; }
+        .others { align-self: flex-start; background: var(--bubble-them); border-bottom-left-radius: 4px; }
+        .u-name { font-size: 10px; font-weight: bold; color: #bb9af7; margin-bottom: 4px; display: block; }
+        .time { font-size: 9px; color: #565f89; margin-top: 6px; display: block; text-align: right; }
+        #input-area { background: var(--panel); padding: 20px; border-top: 1px solid #3b4261; display: flex; gap: 12px; align-items: center; }
+        input { flex: 1; background: #24283b; border: 1px solid #3b4261; color: white; padding: 14px 20px; border-radius: 25px; outline: none; font-size: 14px; }
+        input:focus { border-color: var(--accent); }
+        button { background: var(--accent); border: none; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; color: #1a1b26; font-size: 20px; transition: 0.2s; }
+        button:hover { transform: scale(1.05); background: #89b4fa; }
     </style>
 </head>
 <body>
-    <div id="sidebar"><div style="font-size: 24px;">🛠</div><div style="font-size: 24px; color: var(--accent);">💬</div></div>
-    <div id="chat-area">
+    <div id="sidebar">
+        <div style="font-size: 24px; cursor: pointer;">🛠</div>
+        <div style="font-size: 24px; color: var(--accent); cursor: pointer;">💬</div>
+    </div>
+    <div id="chat-main">
+        <div id="header">
+            <span style="font-weight: bold; color: var(--accent);">UA DEV HUB SERVER</span>
+            <button onclick="clearChat()" style="width: auto; height: auto; border-radius: 5px; font-size: 10px; padding: 5px 10px; background: transparent; border: 1px solid #f7768e; color: #f7768e;">ОЧИСТИТИ</button>
+        </div>
         <div id="messages"></div>
-        <div id="input-zone">
-            <input type="text" id="msgInput" placeholder="Напишіть повідомлення...">
-            <button onclick="sendMessage()">➤</button>
+        <div id="input-area">
+            <input type="text" id="msgIn" placeholder="Напишіть повідомлення Андрію...">
+            <button onclick="send()">➤</button>
         </div>
     </div>
 
     <script>
-        const CONFIG = {
-            REPO: "Otaman1221/ua-dev-hub-server",
+        const CFG = {
+            REPO: "Otaman1221/ua-dev-hub-server", // Твій новий репо
             FILE: "db/chat.json",
-            TOKEN: "ТВІЙ_GITHUB_TOKEN", // ВСТАВ СВІЙ ТОКЕН ТУТ
+            TOKEN: "ТВІЙ_GITHUB_TOKEN", // Встав токен
             USER: "Andriy Bashak" //
         };
 
-        async function load() {
-            try {
-                const res = await fetch(`https://api.github.com/repos/${CONFIG.REPO}/contents/${CONFIG.FILE}`, {
-                    headers: { Authorization: `token ${CONFIG.TOKEN}` }
-                });
-                const data = await res.json();
-                const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
-                document.getElementById('messages').innerHTML = msgs.map(m => `
-                    <div class="bubble ${m.user === CONFIG.USER ? 'mine' : ''}">
-                        ${m.user !== CONFIG.USER ? `<span class="user-name">${m.user}</span>` : ''}
-                        ${m.text}
-                    </div>
-                `).join('');
-                const box = document.getElementById('messages');
-                box.scrollTop = box.scrollHeight;
-            } catch (e) { console.log("Чекаємо на перше повідомлення..."); }
+        async function api(method, body = null) {
+            const url = `https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`;
+            const opt = {
+                method,
+                headers: { Authorization: `token ${CFG.TOKEN}`, "Accept": "application/vnd.github.v3+json" }
+            };
+            if (body) opt.body = JSON.stringify(body);
+            return fetch(url, opt).then(r => r.json());
         }
 
-        async function sendMessage() {
-            const input = document.getElementById('msgInput');
+        async function load() {
+            const data = await api("GET");
+            if (!data.content) return;
+            const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+            const container = document.getElementById('messages');
+            container.innerHTML = msgs.map(m => `
+                <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
+                    ${m.user !== CFG.USER ? `<span class="u-name">${m.user}</span>` : ''}
+                    ${m.text}
+                    <span class="time">${m.time}</span>
+                </div>
+            `).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function send() {
+            const input = document.getElementById('msgIn');
             if (!input.value) return;
-
-            const res = await fetch(`https://api.github.com/repos/${CONFIG.REPO}/contents/${CONFIG.FILE}`, {
-                headers: { Authorization: `token ${CONFIG.TOKEN}` }
-            });
-            const fileData = await res.json();
-            const messages = JSON.parse(decodeURIComponent(escape(atob(fileData.content))));
-
-            messages.push({
-                user: CONFIG.USER,
+            
+            const file = await api("GET");
+            const msgs = JSON.parse(decodeURIComponent(escape(atob(file.content))));
+            
+            msgs.push({
+                user: CFG.USER,
                 text: input.value,
-                time: new Date().toLocaleTimeString()
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
 
-            await fetch(`https://api.github.com/repos/${CONFIG.REPO}/contents/${CONFIG.FILE}`, {
-                method: 'PUT',
-                headers: { Authorization: `token ${CONFIG.TOKEN}` },
-                body: JSON.stringify({
-                    message: "Web update",
-                    content: btoa(unescape(encodeURIComponent(JSON.stringify(messages, null, 4)))),
-                    sha: fileData.sha
-                })
+            await api("PUT", {
+                message: "Web Chat Update",
+                content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4)))),
+                sha: file.sha
             });
             input.value = ''; load();
         }
+
+        async function clearChat() {
+            if(!confirm("Очистити всю історію?")) return;
+            const file = await api("GET");
+            await api("PUT", {
+                message: "Clear History",
+                content: btoa("W10="), // "[]" в base64
+                sha: file.sha
+            });
+            load();
+        }
+
+        document.getElementById('msgIn').addEventListener('keypress', e => e.key === 'Enter' && send());
         setInterval(load, 5000); load();
     </script>
 </body>
