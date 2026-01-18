@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>UA Dev Hub | Cloud Messenger</title>
+    <style>
+        :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; }
+        #sidebar { width: 70px; background: var(--panel); border-right: 1px solid #3b4261; display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px; }
+        #chat-area { flex: 1; display: flex; flex-direction: column; }
+        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .bubble { max-width: 70%; padding: 12px; border-radius: 15px; font-size: 14px; background: #24283b; align-self: flex-start; }
+        .mine { align-self: flex-end; background: #3d59a1; }
+        .user-name { font-size: 10px; color: #bb9af7; font-weight: bold; margin-bottom: 4px; display: block; }
+        #input-zone { background: var(--panel); padding: 15px; display: flex; gap: 10px; border-top: 1px solid #3b4261; }
+        input { flex: 1; background: #24283b; border: none; color: white; padding: 12px; border-radius: 20px; outline: none; }
+        button { background: var(--accent); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="sidebar"><div style="font-size: 24px;">🛠</div><div style="font-size: 24px; color: var(--accent);">💬</div></div>
+    <div id="chat-area">
+        <div id="messages"></div>
+        <div id="input-zone">
+            <input type="text" id="msgInput" placeholder="Напишіть повідомлення...">
+            <button onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            REPO: "Otaman1221/ua-dev-hub-server",
+            FILE: "db/chat.json",
+            TOKEN: "ТВІЙ_GITHUB_TOKEN", // ВСТАВ СВІЙ ТОКЕН ТУТ
+            USER: "Andriy Bashak" //
+        };
+
+        async function load() {
+            try {
+                const res = await fetch(`https://api.github.com/repos/${CONFIG.REPO}/contents/${CONFIG.FILE}`, {
+                    headers: { Authorization: `token ${CONFIG.TOKEN}` }
+                });
+                const data = await res.json();
+                const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                document.getElementById('messages').innerHTML = msgs.map(m => `
+                    <div class="bubble ${m.user === CONFIG.USER ? 'mine' : ''}">
+                        ${m.user !== CONFIG.USER ? `<span class="user-name">${m.user}</span>` : ''}
+                        ${m.text}
+                    </div>
+                `).join('');
+                const box = document.getElementById('messages');
+                box.scrollTop = box.scrollHeight;
+            } catch (e) { console.log("Чекаємо на перше повідомлення..."); }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('msgInput');
+            if (!input.value) return;
+
+            const res = await fetch(`https://api.github.com/repos/${CONFIG.REPO}/contents/${CONFIG.FILE}`, {
+                headers: { Authorization: `token ${CONFIG.TOKEN}` }
+            });
+            const fileData = await res.json();
+            const messages = JSON.parse(decodeURIComponent(escape(atob(fileData.content))));
+
+            messages.push({
+                user: CONFIG.USER,
+                text: input.value,
+                time: new Date().toLocaleTimeString()
+            });
+
+            await fetch(`https://api.github.com/repos/${CONFIG.REPO}/contents/${CONFIG.FILE}`, {
+                method: 'PUT',
+                headers: { Authorization: `token ${CONFIG.TOKEN}` },
+                body: JSON.stringify({
+                    message: "Web update",
+                    content: btoa(unescape(encodeURIComponent(JSON.stringify(messages, null, 4)))),
+                    sha: fileData.sha
+                })
+            });
+            input.value = ''; load();
+        }
+        setInterval(load, 5000); load();
+    </script>
+</body>
+</html>
