@@ -1,145 +1,130 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UA Dev Hub | Cloud Portal</title>
-    <style>
-        :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; --border: #3b4261; }
-        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        
-        #sidebar { width: 70px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px; }
-        .nav-btn { background: transparent; color: #a9b1d6; font-size: 24px; border: none; cursor: pointer; padding: 12px; border-radius: 12px; transition: 0.3s; }
-        .nav-btn.active { background: #3d59a1; color: white; }
+import datetime
+import threading
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QListWidget,
+    QListWidgetItem, QLineEdit, QPushButton, QLabel, QFrame
+)
+from PySide6.QtCore import Qt, Signal
 
-        #main-container { flex: 1; display: flex; flex-direction: column; }
-        #header { height: 60px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 25px; justify-content: space-between; }
-        
-        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-        .bubble { max-width: 75%; padding: 12px 16px; border-radius: 15px; font-size: 14px; position: relative; border: 1px solid var(--border); }
-        .mine { align-self: flex-end; background: #3d59a1; border-bottom-right-radius: 2px; }
-        .others { align-self: flex-start; background: #24283b; border-bottom-left-radius: 2px; }
-        .u-name { font-size: 10px; font-weight: bold; color: #bb9af7; display: block; margin-bottom: 4px; }
-        
-        #input-area { background: var(--panel); padding: 15px 25px; display: flex; gap: 12px; border-top: 1px solid var(--border); }
-        input { flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 12px 20px; border-radius: 25px; outline: none; }
-        button#send-btn { background: var(--accent); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; }
-    </style>
-</head>
-<body>
+class ChatBubble(QFrame):
+    def __init__(self, text, time, user, is_me=False, reply_to=None):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        bg_color = "#3d59a1" if is_me else "#24283b"
+        content_layout = QVBoxLayout()
 
-    <div id="sidebar">
-        <button class="nav-btn" onclick="location.reload()">🔄</button>
-        <button class="nav-btn active">💬</button>
-    </div>
+        if reply_to:
+            reply_box = QLabel(f"↪️ {reply_to[:40]}...")
+            reply_box.setStyleSheet("color: #7aa2f7; font-size: 10px; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 5px;")
+            content_layout.addWidget(reply_box)
 
-    <div id="main-container">
-        <div id="header">
-            <span style="font-weight: bold; color: var(--accent);">UA DEV HUB | CLOUD DB</span>
-            <span id="status" style="font-size: 12px; color: #565f89;">Синхронізація з GitHub...</span>
-            <button onclick="clearCloudChat()" style="background: transparent; border: 1px solid #f7768e; color: #f7768e; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 10px;">ОЧИСТИТИ</button>
-        </div>
+        if not is_me:
+            user_lbl = QLabel(user)
+            user_lbl.setStyleSheet("color: #bb9af7; font-size: 11px; font-weight: bold;")
+            content_layout.addWidget(user_lbl)
 
-        <div id="messages"></div>
+        msg_lbl = QLabel(text)
+        msg_lbl.setWordWrap(True)
+        msg_lbl.setStyleSheet("color: #c0caf5; font-size: 14px; border: none; background: transparent;")
 
-        <div id="input-area">
-            <input type="text" id="msgIn" placeholder="Напишіть повідомлення в хмару...">
-            <button id="send-btn" onclick="sendToCloud()">➤</button>
-        </div>
-    </div>
+        time_lbl = QLabel(time)
+        time_lbl.setStyleSheet("color: #565f89; font-size: 10px;")
+        time_lbl.setAlignment(Qt.AlignRight)
 
-    <script>
-        const CFG = {
-            REPO: "Otaman1221/ua-dev-hub-server",
-            FILE: "db/chat.json",
-            TOKEN: "ghp_ВАШ_ТОКЕН_ТУТ", // Вставте ваш токен сюди
-            USER: "Otaman1221"
-        };
+        content_layout.addWidget(msg_lbl)
+        content_layout.addWidget(time_lbl)
+        self.setStyleSheet(f"background-color: {bg_color}; border-radius: 12px; padding: 8px;")
+        layout.addLayout(content_layout)
+        self.setFixedWidth(380)
 
-        let currentSHA = "";
+class TeamMessenger(QWidget):
+    def __init__(self, engine, current_user):
+        super().__init__()
+        self.engine = engine
+        self.current_user = current_user
+        self.reply_data = None
+        self.init_ui()
 
-        // Функція взаємодії з GitHub API
-        async function gitAPI(method, body = null) {
-            const url = `https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`;
-            const headers = { 
-                "Authorization": `token ${CFG.TOKEN}`,
-                "Accept": "application/vnd.github.v3+json"
-            };
-            const options = { method, headers };
-            if (body) options.body = JSON.stringify(body);
-            
-            const res = await fetch(url, options);
-            return res.json();
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 5, 10, 10)
+
+        self.chat_list = QListWidget()
+        self.chat_list.setStyleSheet("background: transparent; border: none; outline: none;")
+        self.chat_list.setSpacing(10)
+        self.chat_list.itemClicked.connect(self.prepare_reply)
+        layout.addWidget(self.chat_list)
+
+        self.reply_bar = QFrame()
+        self.reply_bar.setVisible(False)
+        self.reply_bar.setStyleSheet("background: #16161e; border-left: 3px solid #7aa2f7;")
+        rb_layout = QHBoxLayout(self.reply_bar)
+        self.reply_label = QLabel("")
+        self.reply_label.setStyleSheet("color: #7aa2f7; font-size: 11px;")
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(20, 20)
+        close_btn.clicked.connect(self.cancel_reply)
+        rb_layout.addWidget(self.reply_label)
+        rb_layout.addWidget(close_btn)
+        layout.addWidget(self.reply_bar)
+
+        input_container = QHBoxLayout()
+        self.msg_input = QLineEdit()
+        self.msg_input.setPlaceholderText("Напишіть повідомлення...")
+        self.msg_input.setStyleSheet("background: #24283b; color: white; padding: 12px; border-radius: 20px;")
+        self.msg_input.returnPressed.connect(self.send_msg)
+
+        send_btn = QPushButton("➤")
+        send_btn.setFixedSize(45, 45)
+        send_btn.setStyleSheet("background: #7aa2f7; color: #1a1b26; border-radius: 22px;")
+        send_btn.clicked.connect(self.send_msg)
+
+        input_container.addWidget(self.msg_input)
+        input_container.addWidget(send_btn)
+        layout.addLayout(input_container)
+
+    def clear_ui_chat(self):
+        self.chat_list.clear()
+
+    def add_single_message(self, m, is_me=False):
+        item = QListWidgetItem(self.chat_list)
+        bubble = ChatBubble(m['text'], m['time'], m['user'], is_me, m.get('reply_to'))
+        item.setSizeHint(bubble.sizeHint())
+        self.chat_list.addItem(item)
+        self.chat_list.setItemWidget(item, bubble)
+        if is_me: item.setTextAlignment(Qt.AlignRight)
+        self.chat_list.scrollToBottom()
+
+    def send_msg(self):
+        text = self.msg_input.text().strip()
+        if not text: return
+        msg = {
+            "user": self.current_user, 
+            "text": text, 
+            "time": datetime.datetime.now().strftime("%H:%M"),
+            "reply_to": self.reply_data
         }
+        self.add_single_message(msg, is_me=True)
+        self.msg_input.clear()
+        self.cancel_reply()
+        threading.Thread(target=self._async_push, args=(msg,), daemon=True).start()
 
-        // Завантаження повідомлень прямо з репозиторію
-        async function loadCloudMessages() {
-            try {
-                const data = await gitAPI("GET");
-                if (data.sha === currentSHA) return; // Нічого не змінилося
-                
-                currentSHA = data.sha;
-                // Декодування Base64 з підтримкою UTF-8
-                const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
-                
-                const container = document.getElementById('messages');
-                container.innerHTML = msgs.map(m => `
-                    <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
-                        ${m.user !== CFG.USER ? `<span class="u-name">${m.user}</span>` : ''}
-                        ${m.text}
-                        <div style="font-size:9px; color:#565f89; text-align:right; margin-top:5px;">${m.time || ''}</div>
-                    </div>
-                `).join('');
-                container.scrollTop = container.scrollHeight;
-                document.getElementById('status').innerText = "🟢 Хмарна база активна";
-            } catch (e) {
-                document.getElementById('status').innerText = "🔴 Помилка доступу до GitHub";
-            }
-        }
+    def _async_push(self, msg):
+        try:
+            data, sha = self.engine.get_file_data("db/chat.json")
+            data.append(msg)
+            self.engine.push_file_data("db/chat.json", data, sha)
+        except: pass
 
-        // Відправка повідомлення в GitHub (оновлення chat.json)
-        async function sendToCloud() {
-            const input = document.getElementById('msgIn');
-            if (!input.value.trim()) return;
+    def prepare_reply(self, item):
+        widget = self.chat_list.itemWidget(item)
+        labels = widget.findChildren(QLabel)
+        msg_text = labels[1].text() if len(labels) > 1 else labels[0].text()
+        self.reply_data = msg_text
+        self.reply_label.setText(f"Відповідь на: {msg_text[:40]}...")
+        self.reply_bar.setVisible(True)
+        self.msg_input.setFocus()
 
-            const newMsg = {
-                user: CFG.USER,
-                text: input.value,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-
-            const file = await gitAPI("GET");
-            const msgs = JSON.parse(decodeURIComponent(escape(atob(file.content))));
-            msgs.push(newMsg);
-
-            const updatedBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4))));
-
-            await gitAPI("PUT", {
-                message: "Web Update",
-                content: updatedBase64,
-                sha: file.sha
-            });
-
-            input.value = '';
-            loadCloudMessages();
-        }
-
-        async function clearCloudChat() {
-            if(!confirm("Видалити всю історію в хмарі?")) return;
-            const file = await gitAPI("GET");
-            await gitAPI("PUT", {
-                message: "Clear History",
-                content: btoa("W10="), // "[]" в Base64
-                sha: file.sha
-            });
-            loadCloudMessages();
-        }
-
-        document.getElementById('msgIn').addEventListener('keypress', e => e.key === 'Enter' && sendToCloud());
-        
-        // Оновлення кожні 5 секунд
-        setInterval(loadCloudMessages, 5000);
-        loadCloudMessages();
-    </script>
-</body>
-</html>
+    def cancel_reply(self):
+        self.reply_data = None
+        self.reply_bar.setVisible(False)
