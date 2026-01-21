@@ -2,78 +2,74 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>UA Dev Hub | Cloud Sync</title>
+    <title>UA Dev Hub | Global Sync</title>
     <style>
         :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; --bubble-me: #3d59a1; --bubble-them: #24283b; }
-        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; }
-        #sidebar { width: 70px; background: var(--panel); border-right: 1px solid #3b4261; display: flex; flex-direction: column; align-items: center; padding: 20px 0; }
-        #main-chat { flex: 1; display: flex; flex-direction: column; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        #header { background: var(--panel); padding: 15px 25px; border-bottom: 2px solid var(--accent); display: flex; justify-content: space-between; }
         #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .bubble { max-width: 70%; padding: 12px; border-radius: 15px; font-size: 14px; position: relative; }
-        .mine { align-self: flex-end; background: var(--bubble-me); }
-        .others { align-self: flex-start; background: var(--bubble-them); }
-        .user-tag { font-size: 10px; font-weight: bold; color: #bb9af7; margin-bottom: 4px; display: block; }
-        #input-area { background: var(--panel); padding: 15px; border-top: 1px solid #3b4261; display: flex; gap: 10px; }
+        .bubble { max-width: 75%; padding: 12px; border-radius: 15px; font-size: 14px; position: relative; }
+        .mine { align-self: flex-end; background: var(--bubble-me); border-bottom-right-radius: 2px; }
+        .others { align-self: flex-start; background: var(--bubble-them); border-bottom-left-radius: 2px; }
+        #input-area { background: var(--panel); padding: 15px; display: flex; gap: 10px; border-top: 1px solid #3b4261; }
         input { flex: 1; background: #24283b; border: 1px solid #3b4261; color: white; padding: 12px; border-radius: 20px; outline: none; }
-        button { background: var(--accent); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; color: #1a1b26; font-weight: bold; }
+        button { background: var(--accent); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div id="sidebar"><div style="font-size: 24px;">💬</div></div>
-    <div id="main-chat">
-        <div id="messages"></div>
-        <div id="input-area">
-            <input type="text" id="msgIn" placeholder="Напишіть команді...">
-            <button onclick="send()">➤</button>
-        </div>
+    <div id="header">
+        <b>UA DEV HUB SERVER</b>
+        <span id="st">Синхронізація...</span>
+    </div>
+    <div id="messages"></div>
+    <div id="input-area">
+        <input type="text" id="msgIn" placeholder="Напишіть повідомлення...">
+        <button onclick="send()">➤</button>
     </div>
 
     <script>
         const CFG = {
-            REPO: "Otaman1221/ua-dev-hub-server", //
+            REPO: "Otaman1221/ua-dev-hub-server",
             FILE: "db/chat.json",
-            TOKEN: "ghp_твій_токен", //
+            TOKEN: "ВСТАВ_СВІЙ_ДІЙСНИЙ_ТОКЕН", //
             USER: "Andriy Bashak" //
         };
 
         async function load() {
-            const res = await fetch(`https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`, {
-                headers: { Authorization: `token ${CFG.TOKEN}` }
-            });
-            const data = await res.json();
-            if(!data.content) return;
-            const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
-            document.getElementById('messages').innerHTML = msgs.map(m => `
-                <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
-                    ${m.user !== CFG.USER ? `<span class="user-tag">${m.user}</span>` : ''}
-                    ${m.text}
-                </div>
-            `).join('');
-            document.getElementById('messages').scrollTop = 99999;
+            try {
+                const res = await fetch(`https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`, {
+                    headers: { Authorization: `token ${CFG.TOKEN}` }
+                });
+                if (res.status === 401) { document.getElementById('st').innerText = "❌ Помилка токена"; return; }
+                const data = await res.json();
+                // Коректне декодування кирилиці
+                const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                document.getElementById('messages').innerHTML = msgs.map(m => `
+                    <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
+                        <small style="color:#bb9af7">${m.user}</small><br>${m.text}
+                    </div>
+                `).join('');
+                document.getElementById('messages').scrollTop = 99999;
+                document.getElementById('st').innerText = "🟢 Онлайн";
+            } catch (e) { console.log(e); }
         }
 
         async function send() {
             const input = document.getElementById('msgIn');
-            if(!input.value) return;
-
+            if (!input.value) return;
             const res = await fetch(`https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`, {
                 headers: { Authorization: `token ${CFG.TOKEN}` }
             });
             const fileData = await res.json();
             const msgs = JSON.parse(decodeURIComponent(escape(atob(fileData.content))));
-
-            msgs.push({
-                user: CFG.USER,
-                text: input.value,
-                time: new Date().toLocaleTimeString()
-            });
+            msgs.push({ user: CFG.USER, text: input.value, time: new Date().toLocaleTimeString() });
 
             await fetch(`https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`, {
                 method: 'PUT',
                 headers: { Authorization: `token ${CFG.TOKEN}` },
                 body: JSON.stringify({
-                    message: "Sync update",
-                    content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4)))),
+                    message: "Web sync",
+                    content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs)))),
                     sha: fileData.sha
                 })
             });
