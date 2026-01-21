@@ -2,170 +2,84 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>UA Dev Hub | Git Database</title>
+    <title>UA Dev Hub | Cloud Sync</title>
     <style>
-        :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; --border: #3b4261; }
-        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        
-        /* SIDEBAR */
-        #sidebar { width: 70px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px; }
-        .nav-btn { background: transparent; color: #a9b1d6; font-size: 24px; border: none; cursor: pointer; padding: 12px; border-radius: 12px; transition: 0.3s; }
-        .nav-btn.active { background: #3d59a1; color: white; }
-
-        #main { flex: 1; display: flex; flex-direction: column; }
-        #header { height: 60px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 25px; justify-content: space-between; }
-        
-        .view { display: none; flex: 1; padding: 25px; overflow-y: auto; }
-        .view.active { display: flex; flex-direction: column; }
-
-        /* ТАБЛИЦЯ БАЗИ ДАНИХ */
-        table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 10px; overflow: hidden; margin-top: 15px; }
-        th { background: #3d59a1; padding: 12px; text-align: left; font-size: 13px; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
-        tr:hover { background: #24283b; }
-
-        /* ФОРМА ДОДАВАННЯ */
-        #db-controls { display: flex; gap: 10px; margin-bottom: 20px; }
-        input.db-input { background: #24283b; border: 1px solid var(--border); color: white; padding: 8px 15px; border-radius: 5px; outline: none; }
-        .btn-add { background: var(--accent); color: #1a1b26; border: none; padding: 8px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; }
-
-        /* ЧАТ */
-        #messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; }
-        .bubble { max-width: 70%; padding: 10px; border-radius: 10px; background: #24283b; }
-        .mine { align-self: flex-end; background: #3d59a1; }
+        :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; --bubble-me: #3d59a1; --bubble-them: #24283b; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; }
+        #sidebar { width: 70px; background: var(--panel); border-right: 1px solid #3b4261; display: flex; flex-direction: column; align-items: center; padding: 20px 0; }
+        #main-chat { flex: 1; display: flex; flex-direction: column; }
+        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .bubble { max-width: 70%; padding: 12px; border-radius: 15px; font-size: 14px; position: relative; }
+        .mine { align-self: flex-end; background: var(--bubble-me); }
+        .others { align-self: flex-start; background: var(--bubble-them); }
+        .user-tag { font-size: 10px; font-weight: bold; color: #bb9af7; margin-bottom: 4px; display: block; }
+        #input-area { background: var(--panel); padding: 15px; border-top: 1px solid #3b4261; display: flex; gap: 10px; }
+        input { flex: 1; background: #24283b; border: 1px solid #3b4261; color: white; padding: 12px; border-radius: 20px; outline: none; }
+        button { background: var(--accent); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; color: #1a1b26; font-weight: bold; }
     </style>
 </head>
 <body>
-
-    <div id="sidebar">
-        <button class="nav-btn active" onclick="switchView(0, this)">🛠</button>
-        <button class="nav-btn" onclick="switchView(1, this)">💬</button>
-    </div>
-
-    <div id="main">
-        <div id="header">
-            <b style="color: var(--accent);">UA DEV HUB | DATABASE MANAGER</b>
-            <span id="status-lbl" style="font-size: 12px; color: #565f89;">Синхронізація...</span>
-        </div>
-
-        <div id="work-view" class="view active">
-            <h2 style="margin-top: 0;">📊 Хмарна база: ua-dev-hub-server</h2>
-            
-            <div id="db-controls">
-                <input type="text" id="db-name" class="db-input" placeholder="Назва об'єкта (напр. Насос #1)">
-                <input type="text" id="db-val" class="db-input" placeholder="Значення (напр. 220V)">
-                <button class="btn-add" onclick="addToDb()">➕ Додати запис</button>
-            </div>
-
-            <div id="db-table-container">Завантаження даних з GitHub...</div>
-        </div>
-
-        <div id="chat-view" class="view">
-            <div id="messages"></div>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="msgIn" style="flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 12px; border-radius: 10px;">
-                <button onclick="sendMsg()" style="background: var(--accent); border: none; padding: 12px 25px; border-radius: 10px; cursor: pointer;">➤</button>
-            </div>
+    <div id="sidebar"><div style="font-size: 24px;">💬</div></div>
+    <div id="main-chat">
+        <div id="messages"></div>
+        <div id="input-area">
+            <input type="text" id="msgIn" placeholder="Напишіть команді...">
+            <button onclick="send()">➤</button>
         </div>
     </div>
 
     <script>
         const CFG = {
-            REPO: "Otaman1221/ua-dev-hub-server",
-            DB_FILE: "db/database.json", // Файл бази в репозиторії
-            CHAT_FILE: "db/chat.json",
-            TOKEN: "ВАШ_НОВИЙ_ТОКЕН", //
+            REPO: "Otaman1221/ua-dev-hub-server", //
+            FILE: "db/chat.json",
+            TOKEN: "ghp_твій_токен", //
             USER: "Andriy Bashak" //
         };
 
-        function switchView(idx, btn) {
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            const views = [document.getElementById('work-view'), document.getElementById('chat-view')];
-            views[idx].classList.add('active');
-            if(idx === 0) loadDatabase();
-        }
-
-        // УНІВЕРСАЛЬНА ФУНКЦІЯ ДЛЯ GITHUB API
-        async function gitApi(path, method = "GET", body = null) {
-            const url = `https://api.github.com/repos/${CFG.REPO}/contents/${path}`;
-            const headers = { "Authorization": `token ${CFG.TOKEN}`, "Accept": "application/vnd.github.v3+json" };
-            const options = { method, headers };
-            if (body) options.body = JSON.stringify(body);
-            
-            const res = await fetch(url, options);
-            if (res.status === 401) { document.getElementById('status-lbl').innerText = "❌ Помилка токена"; return null; }
-            return res.json();
-        }
-
-        // --- ЛОГІКА БАЗИ ДАНИХ (ВКЛАДКА 🛠) ---
-        async function loadDatabase() {
-            const container = document.getElementById('db-table-container');
-            const data = await gitApi(CFG.DB_FILE);
-            if (!data || !data.content) { container.innerHTML = "❌ База даних не знайдена. Створіть db/database.json"; return; }
-            
-            const rows = JSON.parse(decodeURIComponent(escape(atob(data.content))));
-            let html = '<table><tr><th>ID</th><th>Назва</th><th>Значення</th><th>Дія</th></tr>';
-            rows.forEach((row, i) => {
-                html += `<tr>
-                    <td>${i + 1}</td>
-                    <td>${row.name}</td>
-                    <td><b style="color:var(--accent)">${row.val}</b></td>
-                    <td><button onclick="deleteFromDb(${i})" style="color:#f7768e; background:none; border:none; cursor:pointer;">Видалити</button></td>
-                </tr>`;
+        async function load() {
+            const res = await fetch(`https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`, {
+                headers: { Authorization: `token ${CFG.TOKEN}` }
             });
-            container.innerHTML = html + '</table>';
-            document.getElementById('status-lbl').innerText = "🟢 БД Синхронізована";
-        }
-
-        async function addToDb() {
-            const name = document.getElementById('db-name').value;
-            const val = document.getElementById('db-val').value;
-            if(!name || !val) return;
-
-            const file = await gitApi(CFG.DB_FILE);
-            const rows = JSON.parse(decodeURIComponent(escape(atob(file.content))));
-            rows.push({ name, val, date: new Date().toLocaleDateString() });
-
-            await gitApi(CFG.DB_FILE, "PUT", {
-                message: "Add to DB",
-                content: btoa(unescape(encodeURIComponent(JSON.stringify(rows, null, 4)))),
-                sha: file.sha
-            });
-            document.getElementById('db-name').value = ''; document.getElementById('db-val').value = '';
-            loadDatabase();
-        }
-
-        // --- ЛОГІКА ЧАТУ (ВКЛАДКА 💬) ---
-        async function loadChat() {
-            const data = await gitApi(CFG.CHAT_FILE);
-            if (!data || !data.content) return;
+            const data = await res.json();
+            if(!data.content) return;
             const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
             document.getElementById('messages').innerHTML = msgs.map(m => `
-                <div class="bubble ${m.user === CFG.USER ? 'mine' : ''}">
-                    <span style="font-size:10px; color:#bb9af7; font-weight:bold;">${m.user}</span><br>${m.text}
+                <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
+                    ${m.user !== CFG.USER ? `<span class="user-tag">${m.user}</span>` : ''}
+                    ${m.text}
                 </div>
             `).join('');
             document.getElementById('messages').scrollTop = 99999;
         }
 
-        async function sendMsg() {
+        async function send() {
             const input = document.getElementById('msgIn');
             if(!input.value) return;
-            const file = await gitApi(CFG.CHAT_FILE);
-            const msgs = JSON.parse(decodeURIComponent(escape(atob(file.content))));
-            msgs.push({ user: CFG.USER, text: input.value, time: new Date().toLocaleTimeString() });
-            await gitApi(CFG.CHAT_FILE, "PUT", {
-                message: "Chat Update",
-                content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4)))),
-                sha: file.sha
-            });
-            input.value = ''; loadChat();
-        }
 
-        setInterval(() => { if(document.getElementById('chat-view').classList.contains('active')) loadChat(); }, 5000);
-        loadDatabase();
+            const res = await fetch(`https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`, {
+                headers: { Authorization: `token ${CFG.TOKEN}` }
+            });
+            const fileData = await res.json();
+            const msgs = JSON.parse(decodeURIComponent(escape(atob(fileData.content))));
+
+            msgs.push({
+                user: CFG.USER,
+                text: input.value,
+                time: new Date().toLocaleTimeString()
+            });
+
+            await fetch(`https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`, {
+                method: 'PUT',
+                headers: { Authorization: `token ${CFG.TOKEN}` },
+                body: JSON.stringify({
+                    message: "Sync update",
+                    content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4)))),
+                    sha: fileData.sha
+                })
+            });
+            input.value = ''; load();
+        }
+        setInterval(load, 5000); load();
     </script>
 </body>
 </html>
