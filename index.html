@@ -80,128 +80,107 @@
         </div>
     </div>
 
-   <script>
-const CFG = {
-    REPO: "Otaman1221/ua-dev-hub-server",
-    FILE: "db/chat.json",
-    TOKEN: "ghp_НОВИЙ_ТОКЕН",
-    USER: "Andriy Bashak"
-};
+    <script>
+        const CFG = {
+            REPO: "Otaman1221/ua-dev-hub-server", //
+            FILE: "db/chat.json",
+            TOKEN: "ghp_ВАШ_НОВИЙ_ТОКЕН_ТУТ", // ОБОВ'ЯЗКОВО ОНОВИТИ
+            USER: "Andriy Bashak" //
+        };
 
-const chatWidget = document.getElementById('chat-container');
-const messagesBox = document.getElementById('messages');
-const statusEl = document.getElementById('status');
+        const chatWidget = document.getElementById('chat-container');
 
-function switchView(idx, btn) {
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+        // ФУНКЦІЯ ПЕРЕМИКАННЯ КНОПОК
+        function switchView(idx, btn) {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            const views = [document.getElementById('work-view'), document.getElementById('chat-view'), document.getElementById('split-view')];
+            views[idx].classList.add('active');
 
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    const views = [
-        document.getElementById('work-view'),
-        document.getElementById('chat-view'),
-        document.getElementById('split-view')
-    ];
-    views[idx].classList.add('active');
+            // Переміщуємо чат в залежності від режиму
+            if (idx === 1) views[idx].appendChild(chatWidget);
+            if (idx === 2) document.getElementById('split-right').appendChild(chatWidget);
+            
+            console.log("Зміна режиму на:", idx);
+        }
 
-    if (idx === 1) views[1].appendChild(chatWidget);
-    if (idx === 2) document.getElementById('split-right').appendChild(chatWidget);
-}
+        async function api(method, body = null) {
+            const url = `https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`;
+            const headers = { 
+                "Authorization": `token ${CFG.TOKEN}`,
+                "Accept": "application/vnd.github.v3+json",
+                "Content-Type": "application/json"
+            };
+            const options = { method, headers };
+            if (body) options.body = JSON.stringify(body);
+            
+            const res = await fetch(url, options);
+            if (res.status === 401) {
+                document.getElementById('status').innerText = "❌ Помилка: Bad Credentials";
+                return null;
+            }
+            return res.json();
+        }
 
-async function api(method, body = null) {
-    const url = `https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`;
-    const res = await fetch(url, {
-        method,
-        headers: {
-            "Authorization": `token ${CFG.TOKEN}`,
-            "Accept": "application/vnd.github.v3+json"
-        },
-        body: body ? JSON.stringify(body) : null
-    });
+        async function load() {
+            const data = await api("GET");
+            if (!data || !data.content) return;
+            
+            const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+            const container = document.getElementById('messages');
+            container.innerHTML = msgs.map(m => `
+                <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
+                    ${m.user !== CFG.USER ? `<span class="u-name">${m.user}</span>` : ''}
+                    ${m.text}
+                    <span style="font-size:9px; color:#565f89; display:block; text-align:right; margin-top:5px;">${m.time || ''}</span>
+                </div>
+            `).join('');
+            container.scrollTop = container.scrollHeight;
+            document.getElementById('status').innerText = "🟢 Онлайн";
+        }
 
-    if (res.status === 401) {
-        statusEl.innerText = "❌ Bad Credentials";
-        return null;
-    }
+        async function sendMsg() {
+            const input = document.getElementById('msgIn');
+            if (!input.value) return;
 
-    if (res.status === 404 && method === "GET") {
-        await api("PUT", {
-            message: "Init chat",
-            content: btoa("[]")
-        });
-        return api("GET");
-    }
+            const text = input.value;
+            input.value = '';
+            
+            const file = await api("GET");
+            const msgs = JSON.parse(decodeURIComponent(escape(atob(file.content))));
+            
+            msgs.push({
+                user: CFG.USER,
+                text: text,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
 
-    return res.json();
-}
+            const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4))));
+            
+            await api("PUT", {
+                message: "Web Update",
+                content: updatedContent,
+                sha: file.sha
+            });
+            load();
+        }
 
-async function load() {
-    const data = await api("GET");
-    if (!data?.content) return;
+        async function clearChat() {
+            if(!confirm("Видалити всю історію чату?")) return;
+            const file = await api("GET");
+            await api("PUT", {
+                message: "Clear History",
+                content: btoa("W10="), // "[]" в base64
+                sha: file.sha
+            });
+            load();
+        }
 
-    let msgs = [];
-    try {
-        msgs = JSON.parse(atob(data.content));
-    } catch {
-        msgs = [];
-    }
-
-    messagesBox.innerHTML = msgs.map(m => `
-        <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
-            ${m.user !== CFG.USER ? `<span class="u-name">${m.user}</span>` : ''}
-            ${m.text}
-            <span style="font-size:9px;color:#565f89;display:block;text-align:right;">
-                ${m.time || ''}
-            </span>
-        </div>
-    `).join('');
-
-    messagesBox.scrollTop = messagesBox.scrollHeight;
-    statusEl.innerText = "🟢 Онлайн";
-}
-
-async function sendMsg() {
-    const input = document.getElementById('msgIn');
-    if (!input.value.trim()) return;
-
-    const file = await api("GET");
-    const msgs = JSON.parse(atob(file.content));
-
-    msgs.push({
-        user: CFG.USER,
-        text: input.value,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    });
-
-    input.value = '';
-
-    await api("PUT", {
-        message: "New message",
-        content: btoa(JSON.stringify(msgs, null, 2)),
-        sha: file.sha
-    });
-
-    load();
-}
-
-async function clearChat() {
-    if (!confirm("Очистити чат?")) return;
-
-    const file = await api("GET");
-    await api("PUT", {
-        message: "Clear chat",
-        content: btoa("[]"),
-        sha: file.sha
-    });
-
-    load();
-}
-
-document.getElementById('msgIn')
-    .addEventListener('keydown', e => e.key === 'Enter' && sendMsg());
-
-setInterval(load, 5000);
-load();
-</script>
+        document.getElementById('msgIn').addEventListener('keypress', e => e.key === 'Enter' && sendMsg());
+        setInterval(load, 5000);
+        load();
+    </script>
 </body>
 </html>
