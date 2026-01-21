@@ -4,5 +4,11 @@
         "text": "Привіт",
         "time": "23:31",
         "reply_to": null
+    },
+    {
+        "user": "Admin",
+        "text": "Як справи",
+        "time": "23:31",
+        "reply_to": null
     }
 ]
