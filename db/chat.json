@@ -28,5 +28,11 @@
         "text": "Привіт",
         "time": "22:45",
         "reply_to": null
+    },
+    {
+        "user": "Admin",
+        "text": "Привіт",
+        "time": "22:46",
+        "reply_to": null
     }
 ]
