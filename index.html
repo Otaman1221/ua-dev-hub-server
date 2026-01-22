@@ -2,34 +2,35 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>UA Dev Hub | Shared Cloud Console</title>
+    <title>UA Dev Hub | Cloud Console</title>
     <style>
         :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; --border: #3b4261; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        #sidebar { width: 70px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 20px; }
-        #main { flex: 1; display: flex; flex-direction: column; }
-        #header { height: 60px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; justify-content: space-between; }
-        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .bubble { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-size: 14px; line-height: 1.4; border: 1px solid var(--border); }
-        .mine { align-self: flex-end; background: #3d59a1; border-bottom-right-radius: 2px; }
-        .others { align-self: flex-start; background: #24283b; border-bottom-left-radius: 2px; }
-        #input-area { background: var(--panel); padding: 15px; display: flex; gap: 10px; border-top: 1px solid var(--border); }
-        input { flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 10px 20px; border-radius: 20px; outline: none; }
-        button { background: var(--accent); border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; }
+        #main-container { flex: 1; display: flex; flex-direction: column; }
+        #header { height: 60px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 25px; justify-content: space-between; }
+        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .bubble { max-width: 75%; padding: 12px 16px; border-radius: 15px; font-size: 14px; position: relative; border: 1px solid var(--border); }
+        .mine { align-self: flex-end; background: #3d59a1; }
+        .others { align-self: flex-start; background: #24283b; }
+        #input-area { background: var(--panel); padding: 20px; display: flex; gap: 10px; border-top: 1px solid var(--border); }
+        input { flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 12px; border-radius: 20px; outline: none; }
+        button { background: var(--accent); border: none; padding: 0 20px; border-radius: 20px; cursor: pointer; color: #1a1b26; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="sidebar"> <span style="font-size: 24px;">💬</span> </div>
-    <div id="main">
+
+    <div id="main-container">
         <div id="header">
-            <span style="font-weight: bold; color: var(--accent);">UA DEV HUB | SHARED CLOUD DB</span>
-            <span id="status" style="font-size: 12px; color: #565f89;">Синхронізація...</span>
-            <button onclick="clearHistory()" style="background: transparent; border: 1px solid #f7768e; color: #f7768e; cursor: pointer; border-radius: 5px; padding: 5px 10px;">ОЧИСТИТИ ВСЕ</button>
+            <span style="font-weight: bold; color: var(--accent);">UA DEV HUB | SHARED CLOUD</span>
+            <span id="status" style="font-size: 12px; color: #f7768e;">Потрібна авторизація</span>
+            <button onclick="setToken()" style="background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 10px;">ВСТАНОВИТИ ТОКЕН</button>
         </div>
+
         <div id="messages"></div>
+
         <div id="input-area">
-            <input type="text" id="msgIn" placeholder="Напишіть у спільну хмару...">
-            <button onclick="sendMsg()">➤</button>
+            <input type="text" id="msgIn" placeholder="Введіть повідомлення...">
+            <button onclick="sendToCloud()">➤</button>
         </div>
     </div>
 
@@ -37,77 +38,100 @@
         const CFG = {
             REPO: "Otaman1221/ua-dev-hub-server",
             FILE: "db/chat.json",
-            TOKEN: "ghp_ВАШ_ТОКЕН_ТУТ", // Вставте актуальний токен
             USER: "Otaman1221"
         };
 
         let currentSHA = "";
+        // Беремо токен з пам'яті браузера, щоб не зберігати його у файлі (і уникнути блокування GitHub)
+        let GITHUB_TOKEN = localStorage.getItem('gh_token') || "";
+
+        function setToken() {
+            const token = prompt("Введіть ваш GitHub Personal Access Token:");
+            if (token) {
+                localStorage.setItem('gh_token', token);
+                GITHUB_TOKEN = token;
+                location.reload();
+            }
+        }
 
         async function gitAPI(method, body = null) {
+            if (!GITHUB_TOKEN) return null;
             const url = `https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`;
-            const headers = { "Authorization": `token ${CFG.TOKEN}`, "Accept": "application/vnd.github.v3+json" };
+            const headers = { 
+                "Authorization": `token ${GITHUB_TOKEN}`,
+                "Accept": "application/vnd.github.v3+json"
+            };
             const options = { method, headers };
             if (body) options.body = JSON.stringify(body);
+            
             const res = await fetch(url, options);
-            if (res.status === 404 && method === "GET") return { content: btoa("[]"), sha: "" };
+            if (res.status === 401) {
+                alert("Токен недійсний!");
+                localStorage.removeItem('gh_token');
+                return null;
+            }
             return res.json();
         }
 
-        async function load() {
+        async function loadCloudMessages() {
+            if (!GITHUB_TOKEN) return;
             try {
                 const data = await gitAPI("GET");
-                if (data.sha === currentSHA) return;
+                if (!data || data.sha === currentSHA) return;
+                
                 currentSHA = data.sha;
-
                 const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                
                 const container = document.getElementById('messages');
                 container.innerHTML = msgs.map(m => `
                     <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
                         <span style="font-size: 10px; font-weight: bold; color: #bb9af7; display: block;">${m.user}</span>
                         ${m.text}
-                        <span style="font-size: 9px; opacity: 0.6; display: block; text-align: right; margin-top: 5px;">${m.time || ''}</span>
+                        <div style="font-size:9px; color:#565f89; text-align:right; margin-top:5px;">${m.time || ''}</div>
                     </div>
                 `).join('');
                 container.scrollTop = container.scrollHeight;
                 document.getElementById('status').innerText = "🟢 Хмарна база активна";
                 document.getElementById('status').style.color = "#9ece6a";
-            } catch (e) { 
+            } catch (e) {
                 document.getElementById('status').innerText = "🔴 Помилка синхронізації";
-                document.getElementById('status').style.color = "#f7768e";
             }
         }
 
-        async function sendMsg() {
+        async function sendToCloud() {
             const input = document.getElementById('msgIn');
             const val = input.value.trim();
-            if (!val) return;
-            input.value = '';
+            if (!val || !GITHUB_TOKEN) return;
 
-            const file = await gitAPI("GET");
-            const msgs = JSON.parse(decodeURIComponent(escape(atob(file.content))));
-            msgs.push({
-                user: CFG.USER,
-                text: val,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            });
+            try {
+                const file = await gitAPI("GET");
+                const msgs = JSON.parse(decodeURIComponent(escape(atob(file.content))));
+                
+                msgs.push({
+                    user: CFG.USER,
+                    text: val,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                });
 
-            await gitAPI("PUT", {
-                message: "Web Update",
-                content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4)))),
-                sha: file.sha
-            });
-            load();
+                const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4))));
+
+                await gitAPI("PUT", {
+                    message: "Web Update",
+                    content: updatedContent,
+                    sha: file.sha
+                });
+
+                input.value = '';
+                loadCloudMessages();
+            } catch (e) { console.error(e); }
         }
 
-        async function clearHistory() {
-            if(!confirm("Видалити всю історію чату всюди?")) return;
-            const file = await gitAPI("GET");
-            await gitAPI("PUT", { message: "Clear History", content: btoa("W10="), sha: file.sha });
-            load();
+        document.getElementById('msgIn').addEventListener('keypress', e => e.key === 'Enter' && sendToCloud());
+        
+        if (GITHUB_TOKEN) {
+            setInterval(loadCloudMessages, 4000);
+            loadCloudMessages();
         }
-
-        setInterval(load, 4000);
-        load();
     </script>
 </body>
 </html>
