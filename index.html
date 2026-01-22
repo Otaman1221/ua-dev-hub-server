@@ -2,7 +2,8 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>UA Dev Hub | Cloud Console</title>
+    <title>UA Dev Hub | Admin Console</title>
+    <script src="config.js"></script>
     <style>
         :root { 
             --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; 
@@ -10,18 +11,40 @@
             --others: #24283b; --error: #f7768e; --success: #9ece6a;
         }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* SIDEBAR (Копія десктопа) */
         #sidebar { width: 70px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 15px; }
-        .nav-btn { background: transparent; color: #a9b1d6; font-size: 24px; border: none; cursor: pointer; padding: 12px; border-radius: 12px; transition: 0.2s; }
+        .nav-btn { background: transparent; color: #a9b1d6; font-size: 24px; border: none; cursor: pointer; padding: 12px; border-radius: 12px; }
         .nav-btn.active { background: var(--mine); color: white; }
+        .nav-btn:hover { background: #24283b; }
+
+        /* MAIN CONTENT */
         #main-container { flex: 1; display: flex; flex-direction: column; }
-        #header { height: 55px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 25px; justify-content: space-between; }
-        #messages { flex: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 12px; }
-        .bubble { max-width: 70%; padding: 12px 16px; border-radius: 15px; font-size: 14px; border: 1px solid var(--border); }
+        
+        /* HEADER (Копія десктопа) */
+        #header { height: 50px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; justify-content: space-between; }
+        #header span { font-weight: bold; font-size: 14px; }
+        .btn-clear-header { background: transparent; border: 1px solid var(--error); color: var(--error); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+
+        /* CHAT WINDOW */
+        #chat-window { flex: 1; display: flex; flex-direction: column; position: relative; }
+        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        
+        /* BUBBLES */
+        .bubble { max-width: 65%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.4; border: 1px solid var(--border); position: relative; }
         .mine { align-self: flex-end; background: var(--mine); border-bottom-right-radius: 2px; }
         .others { align-self: flex-start; background: var(--others); border-bottom-left-radius: 2px; }
-        #input-area { background: var(--panel); padding: 15px 25px; display: flex; gap: 12px; border-top: 1px solid var(--border); align-items: center; }
-        input { flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 12px 20px; border-radius: 25px; outline: none; }
-        #send-btn { background: var(--accent); border: none; width: 42px; height: 42px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #1a1b26; }
+        .u-name { font-size: 10px; font-weight: bold; color: #bb9af7; margin-bottom: 3px; display: block; }
+        .time { font-size: 9px; color: #565f89; float: right; margin-top: 5px; margin-left: 10px; }
+
+        /* MESSENGER INTERNAL HEADER (Друга кнопка очистити) */
+        .messenger-header { display: flex; align-items: center; padding: 10px 20px; justify-content: space-between; border-bottom: 1px solid rgba(59, 66, 97, 0.5); }
+        .messenger-header span { font-size: 12px; color: var(--text); opacity: 0.8; }
+
+        /* INPUT AREA */
+        #input-area { background: #1f2335; padding: 15px 25px; display: flex; gap: 12px; align-items: center; }
+        input { flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 10px 18px; border-radius: 20px; outline: none; font-size: 13px; }
+        #send-btn { background: var(--accent); border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; color: #1a1b26; font-size: 16px; }
     </style>
 </head>
 <body>
@@ -29,24 +52,27 @@
     <div id="sidebar">
         <button class="nav-btn">🛠</button>
         <button class="nav-btn active">💬</button>
-        <button class="nav-btn" onclick="promptToken()">⚙️</button>
+        <button class="nav-btn">🌓</button>
     </div>
 
     <div id="main-container">
         <div id="header">
-            <span style="font-weight: bold; color: var(--accent);">💬 Командний чат</span>
-            <div style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
-                <div id="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--error);"></div>
-                <span id="status-text" style="color: #565f89;">Очікування токена...</span>
-            </div>
-            <button id="clear-btn" style="background: transparent; border: 1px solid var(--error); color: var(--error); padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 11px;">ОЧИСТИТИ</button>
+            <span>💬 Командний чат</span>
+            <button class="btn-clear-header" onclick="fullClear()">Очистити</button>
         </div>
 
-        <div id="messages"></div>
+        <div id="chat-window">
+            <div class="messenger-header">
+                <span>💬 Командний чат</span>
+                <button class="btn-clear-header" onclick="fullClear()">Очистити</button>
+            </div>
 
-        <div id="input-area">
-            <input type="text" id="msgIn" placeholder="Напишіть повідомлення...">
-            <button id="send-btn">➤</button>
+            <div id="messages"></div>
+
+            <div id="input-area">
+                <input type="text" id="msgIn" placeholder="Напишіть повідомлення...">
+                <button id="send-btn" onclick="sendMsg()">➤</button>
+            </div>
         </div>
     </div>
 
@@ -58,83 +84,71 @@
         };
 
         let currentSHA = "";
-        let TOKEN = localStorage.getItem('gh_token') || "";
 
-        // ФУНКЦІЇ КНОПОК
-        document.getElementById('send-btn').onclick = sendToCloud;
-        document.getElementById('clear-btn').onclick = clearCloudChat;
-        document.getElementById('msgIn').onkeypress = (e) => e.key === 'Enter' && sendToCloud();
-
-        function promptToken() {
-            const t = prompt("Введіть GitHub Token:");
-            if(t) { localStorage.setItem('gh_token', t); location.reload(); }
-        }
-
-        async function gitAPI(method, body = null) {
-            if(!TOKEN) return null;
+        async function api(method, body = null) {
             const url = `https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`;
-            const headers = { "Authorization": `token ${TOKEN}`, "Accept": "application/vnd.github.v3+json" };
+            const headers = { 
+                "Authorization": `token ${GITHUB_AUTH}`, 
+                "Accept": "application/vnd.github.v3+json" 
+            };
             const options = { method, headers };
             if (body) options.body = JSON.stringify(body);
-            
             const res = await fetch(url, options);
-            if (res.status === 401) { updateStatus('err', 'Token Error'); return null; }
             return res.json();
         }
 
-        function updateStatus(type, text) {
-            const dot = document.getElementById('status-dot');
-            const lbl = document.getElementById('status-text');
-            dot.style.background = type === 'ok' ? 'var(--success)' : 'var(--error)';
-            lbl.innerText = text;
-            lbl.style.color = type === 'ok' ? 'var(--success)' : 'var(--error)';
-        }
-
         async function load() {
-            const data = await gitAPI("GET");
-            if (!data || data.sha === currentSHA) return;
-            currentSHA = data.sha;
-            
-            const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
-            const container = document.getElementById('messages');
-            container.innerHTML = msgs.map(m => `
-                <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
-                    <span style="font-size: 10px; font-weight: bold; color: #bb9af7; display: block;">${m.user}</span>
-                    ${m.text}
-                    <div style="font-size:9px; color:#565f89; text-align:right; margin-top:5px;">${m.time || ''}</div>
-                </div>
-            `).join('');
-            container.scrollTop = container.scrollHeight;
-            updateStatus('ok', 'Online');
+            try {
+                const data = await api("GET");
+                if (data.sha === currentSHA) return;
+                currentSHA = data.sha;
+
+                const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                const container = document.getElementById('messages');
+                
+                container.innerHTML = msgs.map(m => `
+                    <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
+                        ${m.user !== CFG.USER ? `<span class="u-name">${m.user}</span>` : ''}
+                        <div>${m.text}</div>
+                        <span class="time">${m.time || ''}</span>
+                    </div>
+                `).join('');
+                container.scrollTop = container.scrollHeight;
+            } catch (e) { console.error("Sync Error"); }
         }
 
-        async function sendToCloud() {
+        async function sendMsg() {
             const input = document.getElementById('msgIn');
-            if (!input.value.trim() || !TOKEN) return;
-            
-            const text = input.value;
+            const val = input.value.trim();
+            if (!val) return;
+
             input.value = '';
-
-            const file = await gitAPI("GET");
+            const file = await api("GET");
             const msgs = JSON.parse(decodeURIComponent(escape(atob(file.content))));
-            msgs.push({ user: CFG.USER, text: text, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
-
-            await gitAPI("PUT", {
-                message: "Web Sync",
-                content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4)))),
-                sha: file.sha
+            
+            msgs.push({
+                user: CFG.USER,
+                text: val,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
+
+            const content = btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4))));
+            await api("PUT", { message: "Sync", content: content, sha: file.sha });
             load();
         }
 
-        async function clearCloudChat() {
-            if(!confirm("Очистити базу?") || !TOKEN) return;
-            const file = await gitAPI("GET");
-            await gitAPI("PUT", { message: "Clear", content: btoa("W10="), sha: file.sha });
+        async function fullClear() {
+            if(!confirm("Видалити історію?")) return;
+            const file = await api("GET");
+            await api("PUT", { message: "Clear", content: btoa("W10="), sha: file.sha });
             load();
         }
 
-        if(TOKEN) { setInterval(load, 4000); load(); }
+        document.getElementById('msgIn').onkeypress = (e) => e.key === 'Enter' && sendMsg();
+        
+        // Оновлення кожні 3 секунди для роботи "без затримок"
+        setInterval(load, 3000);
+        load();
     </script>
 </body>
 </html>
