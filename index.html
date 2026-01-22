@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UA Dev Hub | Cloud Portal</title>
+    <title>UA Dev Hub | Cloud Console</title>
     <style>
         :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; --border: #3b4261; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
         
         #sidebar { width: 70px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px; }
         .nav-btn { background: transparent; color: #a9b1d6; font-size: 24px; border: none; cursor: pointer; padding: 12px; border-radius: 12px; transition: 0.3s; }
-        .nav-btn.active { background: #3d59a1; color: white; }
+        .nav-btn:hover { background: #24283b; color: var(--accent); }
 
         #main-container { flex: 1; display: flex; flex-direction: column; }
         #header { height: 60px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 25px; justify-content: space-between; }
         
-        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
         .bubble { max-width: 75%; padding: 12px 16px; border-radius: 15px; font-size: 14px; position: relative; border: 1px solid var(--border); }
         .mine { align-self: flex-end; background: #3d59a1; border-bottom-right-radius: 2px; }
         .others { align-self: flex-start; background: #24283b; border-bottom-left-radius: 2px; }
@@ -23,27 +23,28 @@
         
         #input-area { background: var(--panel); padding: 15px 25px; display: flex; gap: 12px; border-top: 1px solid var(--border); }
         input { flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 12px 20px; border-radius: 25px; outline: none; }
-        button#send-btn { background: var(--accent); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; }
+        input:focus { border-color: var(--accent); }
+        button#send-btn { background: var(--accent); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 20px; color: #1a1b26; }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
         <button class="nav-btn" onclick="location.reload()">🔄</button>
-        <button class="nav-btn active">💬</button>
+        <button class="nav-btn">💬</button>
     </div>
 
     <div id="main-container">
         <div id="header">
-            <span style="font-weight: bold; color: var(--accent);">UA DEV HUB | CLOUD DB</span>
-            <span id="status" style="font-size: 12px; color: #565f89;">Синхронізація з GitHub...</span>
-            <button onclick="clearCloudChat()" style="background: transparent; border: 1px solid #f7768e; color: #f7768e; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 10px;">ОЧИСТИТИ</button>
+            <span style="font-weight: bold; color: var(--accent);">UA DEV HUB | SHARED CLOUD DB</span>
+            <span id="status" style="font-size: 12px; color: #565f89;">Підключення...</span>
+            <button onclick="clearCloudChat()" style="background: transparent; border: 1px solid #f7768e; color: #f7768e; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 10px;">ОЧИСТИТИ ВСЕ</button>
         </div>
 
         <div id="messages"></div>
 
         <div id="input-area">
-            <input type="text" id="msgIn" placeholder="Напишіть повідомлення в хмару...">
+            <input type="text" id="msgIn" placeholder="Напишіть у спільний чат...">
             <button id="send-btn" onclick="sendToCloud()">➤</button>
         </div>
     </div>
@@ -52,13 +53,13 @@
         const CFG = {
             REPO: "Otaman1221/ua-dev-hub-server",
             FILE: "db/chat.json",
-            TOKEN: "ghp_ВАШ_ТОКЕН_ТУТ", // Вставте ваш токен сюди
-            USER: "Otaman1221"
+            TOKEN: "ghp_ТВІЙ_ТОКЕН_ТУТ", // Встав актуальний токен!
+            USER: "Otaman1221" // Ім'я для веб-версії
         };
 
         let currentSHA = "";
 
-        // Функція взаємодії з GitHub API
+        // Універсальна функція для GitHub API
         async function gitAPI(method, body = null) {
             const url = `https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`;
             const headers = { 
@@ -69,67 +70,80 @@
             if (body) options.body = JSON.stringify(body);
             
             const res = await fetch(url, options);
+            if (res.status === 404 && method === "GET") return { content: btoa("[]"), sha: "" };
             return res.json();
         }
 
-        // Завантаження повідомлень прямо з репозиторію
+        // Завантаження та відображення повідомлень
         async function loadCloudMessages() {
             try {
                 const data = await gitAPI("GET");
-                if (data.sha === currentSHA) return; // Нічого не змінилося
+                if (data.sha === currentSHA) return;
                 
                 currentSHA = data.sha;
-                // Декодування Base64 з підтримкою UTF-8
-                const msgs = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                // Безпечне декодування UTF-8 (для кирилиці)
+                const strData = decodeURIComponent(escape(atob(data.content)));
+                const msgs = JSON.parse(strData);
                 
                 const container = document.getElementById('messages');
                 container.innerHTML = msgs.map(m => `
                     <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
                         ${m.user !== CFG.USER ? `<span class="u-name">${m.user}</span>` : ''}
-                        ${m.text}
+                        <div>${m.text}</div>
                         <div style="font-size:9px; color:#565f89; text-align:right; margin-top:5px;">${m.time || ''}</div>
                     </div>
                 `).join('');
+                
                 container.scrollTop = container.scrollHeight;
                 document.getElementById('status').innerText = "🟢 Хмарна база активна";
             } catch (e) {
-                document.getElementById('status').innerText = "🔴 Помилка доступу до GitHub";
+                console.error(e);
+                document.getElementById('status').innerText = "🔴 Помилка синхронізації";
             }
         }
 
-        // Відправка повідомлення в GitHub (оновлення chat.json)
+        // Відправка повідомлення
         async function sendToCloud() {
             const input = document.getElementById('msgIn');
-            if (!input.value.trim()) return;
+            const val = input.value.trim();
+            if (!val) return;
 
-            const newMsg = {
-                user: CFG.USER,
-                text: input.value,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
+            document.getElementById('status').innerText = "⏳ Відправка...";
+            
+            try {
+                const file = await gitAPI("GET");
+                const msgs = JSON.parse(decodeURIComponent(escape(atob(file.content))));
+                
+                msgs.push({
+                    user: CFG.USER,
+                    text: val,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                });
 
-            const file = await gitAPI("GET");
-            const msgs = JSON.parse(decodeURIComponent(escape(atob(file.content))));
-            msgs.push(newMsg);
+                // Кодування назад у Base64 з підтримкою UTF-8
+                const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4))));
 
-            const updatedBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4))));
+                const res = await gitAPI("PUT", {
+                    message: "Web Update",
+                    content: updatedContent,
+                    sha: file.sha
+                });
 
-            await gitAPI("PUT", {
-                message: "Web Update",
-                content: updatedBase64,
-                sha: file.sha
-            });
-
-            input.value = '';
-            loadCloudMessages();
+                if (res.content) {
+                    input.value = '';
+                    loadCloudMessages();
+                }
+            } catch (e) {
+                alert("Помилка відправки. Перевір токен!");
+            }
         }
 
         async function clearCloudChat() {
-            if(!confirm("Видалити всю історію в хмарі?")) return;
+            if(!confirm("Видалити всю історію чату в хмарі?")) return;
             const file = await gitAPI("GET");
             await gitAPI("PUT", {
                 message: "Clear History",
-                content: btoa("W10="), // "[]" в Base64
+                content: btoa("W10="), // "[]"
                 sha: file.sha
             });
             loadCloudMessages();
@@ -137,8 +151,8 @@
 
         document.getElementById('msgIn').addEventListener('keypress', e => e.key === 'Enter' && sendToCloud());
         
-        // Оновлення кожні 5 секунд
-        setInterval(loadCloudMessages, 5000);
+        // Перевірка оновлень кожні 4 секунди
+        setInterval(loadCloudMessages, 4000);
         loadCloudMessages();
     </script>
 </body>
