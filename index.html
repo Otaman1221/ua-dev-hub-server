@@ -8,34 +8,22 @@
     <style>
         :root { --bg: #1a1b26; --panel: #16161e; --accent: #7aa2f7; --text: #c0caf5; --border: #3b4261; --mine: #3d59a1; --others: #24283b; --error: #f7768e; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        
-        /* Бічна панель */
         #sidebar { width: 70px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 15px; }
         .nav-btn { background: transparent; color: #a9b1d6; font-size: 24px; border: none; cursor: pointer; padding: 12px; border-radius: 12px; }
         .nav-btn.active { background: var(--mine); color: white; }
-
-        /* Основна область */
         #main { flex: 1; display: flex; flex-direction: column; }
         #header { height: 55px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 25px; justify-content: space-between; }
-        
-        /* Чат */
         #messages { flex: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 12px; }
-        .bubble { max-width: 70%; padding: 12px 16px; border-radius: 15px; font-size: 14px; border: 1px solid var(--border); position: relative; }
+        .bubble { max-width: 70%; padding: 12px 16px; border-radius: 15px; font-size: 14px; border: 1px solid var(--border); }
         .mine { align-self: flex-end; background: var(--mine); border-bottom-right-radius: 2px; }
         .others { align-self: flex-start; background: var(--others); border-bottom-left-radius: 2px; }
-        .u-name { font-size: 10px; font-weight: bold; color: #bb9af7; display: block; margin-bottom: 4px; }
-
-        /* Поле вводу */
         #input-area { background: var(--panel); padding: 15px 25px; display: flex; gap: 12px; border-top: 1px solid var(--border); align-items: center; }
-        #msgIn { flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 12px 20px; border-radius: 25px; outline: none; }
-        
-        /* Кнопки дій */
-        .btn-send { background: var(--accent); border: none; width: 42px; height: 42px; border-radius: 50%; cursor: pointer; color: #1a1b26; font-size: 18px; display: flex; align-items: center; justify-content: center; }
-        .btn-clear { background: transparent; border: 1px solid var(--error); color: var(--error); padding: 5px 15px; border-radius: 5px; cursor: pointer; font-size: 11px; }
+        input { flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 12px 20px; border-radius: 25px; outline: none; }
+        .action-btn { background: var(--accent); border: none; width: 42px; height: 42px; border-radius: 50%; cursor: pointer; color: #1a1b26; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+        .clear-btn { background: transparent; border: 1px solid var(--error); color: var(--error); padding: 5px 15px; border-radius: 5px; cursor: pointer; font-size: 11px; }
     </style>
 </head>
 <body>
-
     <div id="sidebar">
         <button class="nav-btn">🛠</button>
         <button class="nav-btn active">💬</button>
@@ -46,14 +34,14 @@
         <div id="header">
             <span style="font-weight: bold;">💬 Командний чат</span>
             <span id="st" style="font-size: 10px; opacity: 0.5;">Підключення...</span>
-            <button class="btn-clear" onclick="window.fullClear()">Очистити</button>
+            <button class="clear-btn" onclick="handleClear()">Очистити</button>
         </div>
 
         <div id="messages"></div>
 
         <div id="input-area">
             <input type="text" id="msgIn" placeholder="Напишіть повідомлення...">
-            <button class="btn-send" onclick="window.sendMsg()">➤</button>
+            <button class="action-btn" onclick="handleSend()">➤</button>
         </div>
     </div>
 
@@ -61,50 +49,39 @@
         const CFG = { REPO: "Otaman1221/ua-dev-hub-server", FILE: "db/chat.json", USER: "Otaman1221" };
         let sha = "";
 
-        // Реєстрація функцій у глобальному об'єкті window для безвідмовної роботи кнопок
-        window.sendMsg = async function() {
+        // ФУНКЦІЇ ПРИВ'ЯЗАНІ ДО WINDOW (найбільш надійний спосіб)
+        window.handleSend = async function() {
             const input = document.getElementById('msgIn');
             const val = input.value.trim();
             if (!val) return;
             
-            input.disabled = true;
             try {
                 const res = await api("GET");
                 const msgs = JSON.parse(decodeURIComponent(escape(atob(res.content))));
-                msgs.push({ 
-                    user: CFG.USER, 
-                    text: val, 
-                    time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) 
-                });
+                msgs.push({ user: CFG.USER, text: val, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
                 
                 await api("PUT", {
-                    message: "Web Update",
+                    message: "Sync",
                     content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4)))),
                     sha: res.sha
                 });
                 input.value = "";
-                await load();
-            } catch (e) { console.error("Send failed"); }
-            input.disabled = false;
-            input.focus();
+                load();
+            } catch (e) { alert("Помилка! Можливо, токен заблоковано."); }
         };
 
-        window.fullClear = async function() {
-            if (!confirm("Видалити історію чату?")) return;
+        window.handleClear = async function() {
+            if (!confirm("Очистити чат?")) return;
             try {
                 const res = await api("GET");
-                await api("PUT", { message: "Clear History", content: btoa("W10="), sha: res.sha });
-                await load();
-            } catch (e) { console.error("Clear failed"); }
+                await api("PUT", { message: "Clear", content: btoa("W10="), sha: res.sha });
+                load();
+            } catch (e) { alert("Не вдалося очистити!"); }
         };
 
         async function api(method, body = null) {
             const url = `https://api.github.com/repos/${CFG.REPO}/contents/${CFG.FILE}`;
-            // GITHUB_TOKEN береться з вашого файлу auth.js
-            const headers = { 
-                "Authorization": `token ${GITHUB_TOKEN}`, 
-                "Accept": "application/vnd.github.v3+json" 
-            };
+            const headers = { "Authorization": `token ${GITHUB_TOKEN}`, "Accept": "application/vnd.github.v3+json" };
             const opt = { method, headers };
             if (body) opt.body = JSON.stringify(body);
             const r = await fetch(url, opt);
@@ -121,9 +98,9 @@
                 const cont = document.getElementById('messages');
                 cont.innerHTML = msgs.map(m => `
                     <div class="bubble ${m.user === CFG.USER ? 'mine' : 'others'}">
-                        ${m.user !== CFG.USER ? `<span class="u-name">${m.user}</span>` : ''}
+                        ${m.user !== CFG.USER ? `<span style="font-size:10px; font-weight:bold; color:#bb9af7;">${m.user}</span>` : ''}
                         <div>${m.text}</div>
-                        <div style="font-size: 9px; opacity: 0.5; text-align: right; margin-top: 5px;">${m.time || ''}</div>
+                        <div style="font-size:9px; opacity:0.5; text-align:right;">${m.time || ''}</div>
                     </div>
                 `).join('');
                 cont.scrollTop = cont.scrollHeight;
@@ -131,11 +108,7 @@
             } catch (e) { document.getElementById('st').innerText = "🔴 Offline"; }
         }
 
-        // Обробка натискання Enter
-        document.getElementById('msgIn').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') window.sendMsg();
-        });
-
+        document.getElementById('msgIn').onkeydown = (e) => { if(e.key === 'Enter') handleSend(); };
         setInterval(load, 4000);
         load();
     </script>
