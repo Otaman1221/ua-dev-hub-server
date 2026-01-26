@@ -2,6 +2,7 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UA Dev Hub | Admin Portal</title>
     <script src="auth.js"></script>
     <style>
@@ -13,12 +14,13 @@
         #main { flex: 1; display: flex; flex-direction: column; }
         #header { height: 55px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 25px; justify-content: space-between; }
         #messages { flex: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 12px; }
-        .bubble { max-width: 70%; padding: 12px 16px; border-radius: 15px; font-size: 14px; border: 1px solid var(--border); }
+        .bubble { max-width: 70%; padding: 12px 16px; border-radius: 15px; font-size: 14px; border: 1px solid var(--border); position: relative; }
         .mine { align-self: flex-end; background: var(--mine); border-bottom-right-radius: 2px; }
         .others { align-self: flex-start; background: var(--others); border-bottom-left-radius: 2px; }
         #input-area { background: var(--panel); padding: 15px 25px; display: flex; gap: 12px; border-top: 1px solid var(--border); align-items: center; }
         input { flex: 1; background: #24283b; border: 1px solid var(--border); color: white; padding: 12px 20px; border-radius: 25px; outline: none; }
-        #send-btn { background: var(--accent); border: none; width: 42px; height: 42px; border-radius: 50%; cursor: pointer; color: #1a1b26; font-size: 18px; }
+        .btn-send { background: var(--accent); border: none; width: 42px; height: 42px; border-radius: 50%; cursor: pointer; color: #1a1b26; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+        .btn-clear { background: transparent; border: 1px solid var(--error); color: var(--error); padding: 5px 15px; border-radius: 5px; cursor: pointer; font-size: 11px; }
     </style>
 </head>
 <body>
@@ -31,16 +33,18 @@
         <div id="header">
             <span style="font-weight: bold;">💬 Командний чат</span>
             <span id="st" style="font-size: 10px; opacity: 0.8; color: #f7768e;">🔴 Offline</span>
-            <button onclick="window.fullClear()" style="background: transparent; border: 1px solid var(--error); color: var(--error); padding: 5px 15px; border-radius: 5px; cursor: pointer; font-size: 11px;">Очистити</button>
+            <button class="btn-clear" onclick="window.fullClear()">Очистити</button>
         </div>
         <div id="messages"></div>
         <div id="input-area">
             <input type="text" id="msgIn" placeholder="Напишіть повідомлення...">
-            <button id="send-btn" onclick="window.sendMsg()">➤</button>
+            <button class="btn-send" onclick="window.sendMsg()">➤</button>
         </div>
     </div>
+
     <script>
-        let currentSha = "";
+        let sha = "";
+
         async function api(method, body = null) {
             const url = `https://api.github.com/repos/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
             const headers = { "Authorization": `token ${GITHUB_CONFIG.token}`, "Accept": "application/vnd.github.v3+json" };
@@ -49,38 +53,59 @@
             return r.json();
         }
 
-        window.sendMsg = async () => {
+        window.sendMsg = async function() {
             const input = document.getElementById('msgIn');
-            const val = input.value.trim(); if (!val) return;
-            const res = await api("GET");
-            const msgs = JSON.parse(decodeURIComponent(escape(atob(res.content))));
-            msgs.push({ user: "Otaman1221", text: val, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
-            await api("PUT", { message: "Update", content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4)))), sha: res.sha });
-            input.value = ""; load();
+            const val = input.value.trim();
+            if (!val) return;
+            
+            try {
+                const res = await api("GET");
+                const msgs = JSON.parse(decodeURIComponent(escape(atob(res.content))));
+                msgs.push({ user: "Otaman1221", text: val, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+                
+                await api("PUT", {
+                    message: "Sync",
+                    content: btoa(unescape(encodeURIComponent(JSON.stringify(msgs, null, 4)))),
+                    sha: res.sha
+                });
+                input.value = "";
+                await load();
+            } catch (e) { alert("Помилка відправки! Перевірте токен."); }
         };
 
-        window.fullClear = async () => {
-            if (!confirm("Очистити чат?")) return;
-            const res = await api("GET");
-            await api("PUT", { message: "Clear", content: btoa("W10="), sha: res.sha });
-            load();
+        window.fullClear = async function() {
+            if (!confirm("Видалити історію чату?")) return;
+            try {
+                const res = await api("GET");
+                await api("PUT", { message: "Clear", content: btoa("W10="), sha: res.sha });
+                await load();
+            } catch (e) { alert("Помилка доступу!"); }
         };
 
         async function load() {
             try {
                 const res = await api("GET");
-                if (res.sha === currentSha) return; currentSha = res.sha;
+                if (res.sha === sha) return;
+                sha = res.sha;
                 const msgs = JSON.parse(decodeURIComponent(escape(atob(res.content))));
                 document.getElementById('messages').innerHTML = msgs.map(m => `
                     <div class="bubble ${m.user === 'Otaman1221' ? 'mine' : 'others'}">
                         <span style="font-size:10px; font-weight:bold; color:#bb9af7; display:block;">${m.user}</span>
-                        ${m.text}
+                        <div>${m.text}</div>
+                        <div style="font-size:9px; opacity:0.5; text-align:right;">${m.time || ''}</div>
                     </div>`).join('');
+                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
                 document.getElementById('st').innerText = "🟢 Online";
                 document.getElementById('st').style.color = "#9ece6a";
-            } catch (e) { document.getElementById('st').innerText = "🔴 Offline"; }
+            } catch (e) { 
+                document.getElementById('st').innerText = "🔴 Offline";
+                document.getElementById('st').style.color = "#f7768e";
+            }
         }
-        setInterval(load, 4000); load();
+
+        document.getElementById('msgIn').onkeydown = (e) => { if(e.key === 'Enter') window.sendMsg(); };
+        setInterval(load, 4000);
+        load();
     </script>
 </body>
 </html>
